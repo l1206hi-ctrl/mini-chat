@@ -7,31 +7,27 @@ export function initTabs() {
   const views = document.querySelectorAll(".app-content");
 
   if (!tabButtons.length || !views.length) {
-    console.warn("탭 버튼이나 화면(.app-content)을 찾을 수 없어요.");
+    console.warn("Tab buttons or view sections are missing (.tab-btn/.app-content).");
     return;
   }
 
   function switchView(view) {
     currentView = view;
 
-    // 탭 버튼 스타일 바꾸기
+    // update active state
     tabButtons.forEach((btn) => {
       const isActive = btn.dataset.view === view;
-      if (isActive) {
-        btn.classList.add("active");
-      } else {
-        btn.classList.remove("active");
-      }
+      btn.classList.toggle("active", isActive);
     });
 
-    // 화면 보이기 / 숨기기
+    // show/hide
     views.forEach((section) => {
       const isMatch = section.dataset.view === view;
       section.style.display = isMatch ? "flex" : "none";
     });
   }
 
-  // 탭 클릭 이벤트
+  // click handlers
   tabButtons.forEach((btn) => {
     btn.addEventListener("click", () => {
       const view = btn.dataset.view;
@@ -40,8 +36,6 @@ export function initTabs() {
     });
   });
 
-  // 처음에는 채팅 탭
+  // initial view
   switchView(currentView);
 }
-
-

@@ -1,159 +1,329 @@
 <!DOCTYPE html>
 <html lang="ko">
-<head>
-  <meta charset="UTF-8" />
-  <title>Mini Chat</title>
-  <link rel="stylesheet" href="style.css" />
-</head>
-<body>
-
-  <div class="app-layout">
-    <!-- 왼쪽: 캐릭터 목록 사이드바 -->
-    <aside class="sidebar">
-      <h2 class="app-title">Mini Chat</h2>
-      <div class="sidebar-section">
-        <div class="sidebar-header">
-          <span>캐릭터 목록</span>
-          <button id="newCharacterBtn" class="ghost-btn">+ 새 캐릭터</button>
+  <head>
+    <meta charset="UTF-8" />
+    <title>Mini Chat</title>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%23c7d2fe'/%3E%3Ctext x='32' y='42' text-anchor='middle' font-size='36' fill='%230f172a' font-family='Arial, sans-serif'%3EM%3C/text%3E%3C/svg%3E"
+    />
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <div class="app-layout">
+      <!-- Character Grid Page -->
+      <div id="mainPlaceholder" class="main-placeholder" style="display: none">
+        <div class="placeholder-header">
+          <div class="placeholder-title">캐릭터를 선택해 주세요</div>
         </div>
-        <div id="character-buttons" class="character-list"></div>
-      </div>
-    </aside>
-
-    <!-- 오른쪽 전체 영역 -->
-    <div class="main-area">
-      <!-- 상단 탭 -->
-      <div class="top-tabs">
-        <button class="tab-btn active" data-view="chat">채팅</button>
-        <button class="tab-btn" data-view="characters">캐릭터 만들기</button>
-        <button class="tab-btn" data-view="profile">내 프로필</button>
+        <div id="characterGrid" class="character-grid"></div>
       </div>
 
-      <!-- ===== 뷰 1: 채팅 ===== -->
-      <section class="app-content" data-view="chat">
-        <main class="chat-panel">
-          <header class="chat-header">
-            <div>
-              <div id="currentCharacterName" class="char-name">기본 챗봇</div>
-              <div id="currentCharacterTagline" class="char-tagline">
-                무난하게 대화하는 기본 AI
+      <!-- Main -->
+      <div class="main-area">
+        <div class="app-topbar">
+          <button id="homeBtn" class="ghost-btn collapse-btn" aria-label="홈으로 이동">🏠</button>
+          <h2 class="app-title">Mini Chat</h2>
+        </div>
+
+        <div class="top-tabs">
+          <button class="tab-btn active" data-view="chat">채팅</button>
+          <button class="tab-btn" data-view="characters">캐릭터 만들기</button>
+          <button class="tab-btn" data-view="profile">프로필</button>
+        </div>
+
+        <!-- Chat -->
+        <section class="app-content" data-view="chat">
+          <main class="chat-panel">
+            <header class="chat-header">
+              <div>
+                <div id="currentCharacterName" class="char-name">기본 봇</div>
+                <div id="currentCharacterTagline" class="char-tagline">깨끗한 화이트 테마</div>
               </div>
-            </div>
-          </header>
+              <div class="chat-actions">
+                <button id="clearAllChatsBtn" class="ghost-btn danger-outline small-btn">기록 전체 삭제</button>
+                <button id="resetChatBtn" class="ghost-btn reset-btn">초기화</button>
+              </div>
+            </header>
 
           <div id="messages" class="messages"></div>
 
-          <div class="input-area">
-            <textarea
-              id="chatInput"
-              rows="1"
-              placeholder="메시지를 입력하세요."
-            ></textarea>
-            <button id="sendBtn">전송</button>
-            <button id="sampleBtn">샘플 불러오기</button>
-          </div>
-        </main>
-      </section>
+            <div class="input-area">
+              <div class="input-shell">
+                <div class="input-actions">
+                  <button id="personaBtn" class="circle-btn light persona-btn" aria-label="프로필 열기">
+                    🙂
+                  </button>
+                </div>
+                <textarea
+                  id="chatInput"
+                  rows="1"
+                  placeholder="메시지를 입력하세요"
+                ></textarea>
+              </div>
 
-      <!-- ===== 뷰 2: 캐릭터 만들기 ===== -->
-      <section class="app-content" data-view="characters" style="display:none;">
-        <aside class="detail-panel">
-          <h3>캐릭터 설정</h3>
-
-          <form id="characterForm" class="char-form">
-            <label>
-              이름
-              <input id="charNameInput" type="text" />
-            </label>
-
-            <label>
-              한 줄 소개
-              <input id="charTaglineInput" type="text" />
-            </label>
-
-            <label>
-              태그 (쉼표로 구분)
-              <input id="charTagsInput" type="text" placeholder="예: 친구,반말,편안함" />
-            </label>
-
-            <label>
-              시스템 프롬프트
-              <textarea id="charSystemPromptInput" rows="6" placeholder="모델에게 줄 캐릭터 설명을 적어주세요."></textarea>
-            </label>
-
-            <label>
-              말투
-              <select id="charToneSelect">
-                <option value="formal">존댓말</option>
-                <option value="casual">반말</option>
-              </select>
-            </label>
-
-            <label>
-              세계관 / 배경 설정
-              <textarea
-                id="charWorldviewInput"
-                rows="4"
-                placeholder="예: 현대 한국과 비슷하지만, 사람들의 감정을 수치로 볼 수 있는 세계. 캐릭터는 감정 데이터를 분석하는 연구원이다."
-              ></textarea>
-            </label>
-
-            <label>
-              캐릭터 상세 설명 / 뒷이야기
-              <textarea
-                id="charDescriptionInput"
-                rows="4"
-                placeholder="예: 어릴 때부터 사람들의 감정에 민감했고, 겉으로는 차분하지만 속으로는 상대를 많이 신경쓴다. 겁이 많지만 노력해서 솔직하려고 한다."
-              ></textarea>
-            </label>
-
-            <label>
-              예시 대화
-              <textarea
-                id="charExampleDialoguesInput"
-                rows="6"
-                placeholder="예:
-사용자: 오늘 기분이 별로야.
-캐릭터: 무슨 일 있었어? 괜찮으면 천천히 얘기해줘. 난 네 편이야.
-
-사용자: 나 너무 못난 것 같아.
-캐릭터: 그런 생각이 드는 건 이해하지만, 최소한 난 널 그렇게 보지 않아."
-              ></textarea>
-            </label>
-
-            <label>
-              대화 시작 인사 (첫 메시지)
-              <textarea
-                id="charFirstMessageInput"
-                rows="2"
-                placeholder="예: 안녕, 난 ○○야. 오늘은 어떤 이야기부터 해볼까?"
-              ></textarea>
-            </label>
-
-            <div class="char-form-buttons">
-              <button type="button" id="saveCharacterBtn">저장</button>
-              <button type="button" id="deleteCharacterBtn" class="danger-btn">삭제</button>
+              <button id="sendBtn" class="circle-btn primary action-send" aria-label="메시지 전송">
+                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                  <path d="M5 12 3 5l18 7-18 7 2-7z" fill="currentColor" />
+                </svg>
+              </button>
             </div>
-          </form>
-        </aside>
-      </section>
+          </main>
+        </section>
 
-      <!-- ===== 뷰 3: 내 프로필 (임시) ===== -->
-      <section class="app-content" data-view="profile" style="display:none;">
-        <aside class="detail-panel">
-          <h3>내 프로필</h3>
-          <p>여기에 나중에 프로필 입력 폼 넣을 예정!</p>
-        </aside>
-      </section>
+        <!-- Character Builder -->
+        <section class="app-content" data-view="characters" style="display: none">
+          <aside class="detail-panel">
+            <h3>캐릭터 설정</h3>
+
+            <div class="builder-tabs" role="tablist">
+              <button type="button" class="builder-tab active" data-target="builder-prompt">
+                프롬프트
+              </button>
+              <button type="button" class="builder-tab" data-target="builder-intro">소개</button>
+              <button type="button" class="builder-tab" data-target="builder-examples">예시</button>
+              <button type="button" class="builder-tab" data-target="builder-profile">요약</button>
+              <button type="button" class="builder-tab" data-target="builder-settings">추가</button>
+            </div>
+
+            <form id="characterForm" class="char-form">
+              <!-- 프롬프트 -->
+              <div class="builder-panel active" id="builder-prompt">
+                <div class="field-group">
+                  <label>
+                    이름
+                    <input id="charNameInput" type="text" placeholder="캐릭터 이름" />
+                  </label>
+                  <label>
+                    한 줄 소개
+                    <input id="charTaglineInput" type="text" placeholder="짧은 소개" />
+                  </label>
+                  <label>
+                    태그 (쉼표 구분)
+                    <input id="charTagsInput" type="text" placeholder="#태그, #분류" />
+                  </label>
+                </div>
+                <div class="avatar-upload">
+                  <div id="charImagePreview" class="avatar-circle avatar-preview">A</div>
+                  <div class="avatar-actions">
+                    <label class="ghost-btn file-label">
+                      이미지 업로드
+                      <input id="charImageFileInput" type="file" accept="image/*" />
+                    </label>
+                    <input
+                      id="charImageUrlInput"
+                      type="text"
+                      placeholder="이미지 URL 붙여넣기"
+                    />
+                  </div>
+                </div>
+                <label>
+                  시스템 프롬프트
+                  <textarea
+                    id="charSystemPromptInput"
+                    rows="6"
+                    placeholder="모델에게 캐릭터를 설명하세요"
+                  ></textarea>
+                </label>
+              </div>
+
+              <!-- 소개 -->
+              <div class="builder-panel" id="builder-intro">
+                <div class="field-group two-col">
+                  <label>
+                    세계관 / 배경
+                    <textarea
+                      id="charWorldviewInput"
+                      rows="4"
+                      placeholder="설정, 배경, 세계관 등을 적어주세요"
+                    ></textarea>
+                  </label>
+                  <label>
+                    성격 / 말투
+                    <input id="charPersonalityInput" type="text" placeholder="성격과 말투" />
+                  </label>
+                </div>
+                <label>
+                  자세한 설명
+                  <textarea
+                    id="charDescriptionInput"
+                    rows="4"
+                    placeholder="특징, 취향, 감정 등을 적어주세요"
+                  ></textarea>
+                </label>
+                <label>
+                  첫 인사 메시지
+                  <textarea
+                    id="charFirstMessageInput"
+                    rows="2"
+                    placeholder="처음 사용자에게 보낼 메시지"
+                  ></textarea>
+                </label>
+                <label>
+                  별명 / 호칭
+                  <input id="charGreetingInput" type="text" placeholder="별명이나 호칭" />
+                </label>
+              </div>
+
+              <!-- 예시 -->
+              <div class="builder-panel" id="builder-examples">
+                <div class="dialogue-header">
+                  <div>
+                    <div class="dialogue-title">대화 예시</div>
+                    <p class="muted">
+                      사용자(user)와 캐릭터(assistant)의 대화를 5개까지 추가하세요.
+                    </p>
+                  </div>
+                  <div class="dialogue-actions">
+                    <span id="dialogueExampleHint" class="dialogue-hint">0/5</span>
+                    <button type="button" id="addDialogueExampleBtn" class="ghost-btn">
+                      + 예시 추가
+                    </button>
+                  </div>
+                </div>
+                <div id="dialogueExampleList" class="dialogue-example-list"></div>
+
+                <div class="scenario-section">
+                  <div class="scenario-header">
+                    <div>
+                      <div class="dialogue-title">상황 예시</div>
+                      <p class="muted">
+                        장면/상황과 화자를 지정해 캐릭터 몰입도를 높여주세요.
+                      </p>
+                    </div>
+                    <button type="button" id="addScenarioBtn" class="ghost-btn scenario-add">
+                      + 상황 추가
+                    </button>
+                  </div>
+                  <div id="scenarioCards" class="scenario-cards"></div>
+                  <div id="scenarioEditor" class="scenario-editor hidden">
+                    <label>
+                      제목
+                      <input id="scenarioTitleInput" type="text" placeholder="상황 제목" />
+                    </label>
+                    <label>
+                      내용
+                      <textarea
+                        id="scenarioContentInput"
+                        rows="4"
+                        placeholder="배경, 감정, 관계 등을 적어주세요"
+                      ></textarea>
+                    </label>
+                    <div class="scenario-role-toggle">
+                      <span class="role-label">화자</span>
+                      <button type="button" class="role-chip" data-role="user">User</button>
+                      <button type="button" class="role-chip" data-role="bot">Bot</button>
+                      <span id="scenarioRoleHint" class="role-hint">User</span>
+                    </div>
+                    <div class="scenario-actions-row">
+                      <button type="button" id="saveScenarioBtn" class="ghost-btn">저장</button>
+                      <button type="button" id="cancelScenarioBtn" class="ghost-btn danger-outline">
+                        취소
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 요약 -->
+              <div class="builder-panel" id="builder-profile">
+                <p class="muted">요약/메모 등을 자유롭게 적어주세요.</p>
+                <textarea rows="4" placeholder="요약 / 메모"></textarea>
+              </div>
+
+              <!-- 추가 -->
+              <div class="builder-panel" id="builder-settings">
+                <p class="muted">추가 설정은 이후 확장 예정입니다.</p>
+                <label>
+                  추가 지침
+                  <textarea rows="3" placeholder="보조 지침이나 주의사항을 적어주세요"></textarea>
+                </label>
+              </div>
+
+              <div class="char-form-buttons">
+                <button type="button" id="saveCharacterBtn">저장</button>
+                <button type="button" id="deleteCharacterBtn" class="danger-btn">삭제</button>
+              </div>
+            </form>
+          </aside>
+        </section>
+
+        <!-- Profile -->
+        <section class="app-content" data-view="profile" style="display: none">
+          <aside class="detail-panel">
+            <h3>프로필</h3>
+            <p>좌측 프로필 버튼에서 자유 형식 유저 정보를 입력하세요.</p>
+          </aside>
+        </section>
+      </div>
     </div>
-  </div>
 
-  <!-- 생각 중 오버레이 -->
-  <div id="thinkingOverlay" class="overlay hidden">
-    <div class="dots">...</div>
-  </div>
+    <!-- Thinking overlay -->
+    <div id="thinkingOverlay" class="overlay hidden">
+      <div class="dots">...</div>
+    </div>
 
-  <script type="module" src="./js/main.js"></script>
-</body>
+    <!-- Dialogue modal -->
+    <div id="dialogueModal" class="dialogue-modal hidden">
+      <div class="dialogue-modal-backdrop"></div>
+      <div class="dialogue-modal-body">
+        <header class="dialogue-modal-header">
+          <button id="dialogueModalClose" aria-label="닫기" class="dialogue-icon-btn">×</button>
+          <div>
+            <div id="dialogueModalTitle" class="dialogue-modal-title">대화 예시</div>
+            <div id="dialogueCharCount" class="dialogue-char-count">0/2,000 chars</div>
+          </div>
+          <button id="dialogueModalSave" class="dialogue-save-btn">저장</button>
+        </header>
+
+        <div id="dialogueModalMessages" class="dialogue-modal-messages"></div>
+
+        <div class="dialogue-composer">
+          <div class="dialogue-role-tabs">
+            <button type="button" id="dialogueRoleUser" data-role="user" class="dialogue-role-tab active">
+              User
+            </button>
+            <button type="button" id="dialogueRoleAssistant" data-role="assistant" class="dialogue-role-tab">
+              <span id="dialogueAssistantName">Assistant</span>
+            </button>
+          </div>
+          <div class="dialogue-input-row">
+            <textarea
+              id="dialogueModalInput"
+              rows="2"
+              class="dialogue-modal-input"
+              placeholder="메시지를 입력하고 Enter를 눌러 추가하세요"
+            ></textarea>
+            <button id="dialogueModalSend" class="dialogue-send-btn" aria-label="추가">추가</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Persona modal -->
+    <div id="personaModal" class="modal hidden">
+      <div id="personaModalBody" class="modal-body">
+        <header class="modal-header">
+          <div>
+            <div class="modal-title">당신은 누구인가요?</div>
+            <p class="muted">자유롭게 작성한 정체성을 대화에 반영합니다.</p>
+          </div>
+          <button id="personaCloseBtn" class="dialogue-icon-btn" aria-label="닫기">×</button>
+        </header>
+        <label class="modal-field">
+          <span>당신은 누구인가요?</span>
+          <textarea
+            id="personaTextarea"
+            rows="4"
+            placeholder='예: "성태와 10년 지기 소꿉친구이자 현재는 빚쟁이 관계인 나"'
+          ></textarea>
+        </label>
+        <div class="modal-actions">
+          <button id="personaSaveBtn" class="primary-btn">저장</button>
+        </div>
+      </div>
+    </div>
+
+    <script type="module" src="./js/main.js"></script>
+  </body>
 </html>
-

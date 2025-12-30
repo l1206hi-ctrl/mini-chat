@@ -1,24 +1,66 @@
 // character-ui.js
-// 캐릭터 관련 UI + 이벤트를 모두 모아둔 파일
-
+// Character selection/management UI logic
 import {
   CHARACTERS,
   saveUserCharacters,
   createEmptyCharacter,
   isDefaultCharacter,
+  hideDefaultCharacterId,
 } from "./characters.js";
-
+import { loadMessages, clearMessages, messages, addMessage } from "./state.js";
+import { renderMessages, setAvatarCircle } from "./ui.js";
 import {
-  loadMessages,
-  clearMessages,
-  messages,
-  addMessage,
-} from "./state.js";
-import { renderMessages } from "./ui.js";
+  renderCharacterButtons as renderCharacterButtonsView,
+  renderCharacterGrid as renderCharacterGridView,
+} from "./character-list.js";
+import {
+  renderScenarioCards,
+  openScenarioEditor,
+  saveScenarioFromEditor,
+  cancelScenarioEdit,
+  setScenarioRole,
+  updateScenarioRoleButtons,
+} from "./character-scenarios.js";
+import { getCurrentCharacter, setCurrentCharacter } from "./store.js";
+import {
+  dialogueModal,
+  setDialogueRole,
+  closeDialogueModal,
+  pushDialogueFromInput,
+  saveDialogueModal,
+  renderDialogueExampleCards,
+  addDialogueExampleCard,
+  collectDialogueExamples,
+} from "./character-dialogue-modal.js";
 
+let builderTabsInitialized = false;
+
+function updateAvatarPreview(el, name, imageUrl) {
+  if (!el) return;
+  setAvatarCircle(el, name || "", imageUrl || "");
+}
+
+function showMainArea() {
+  const mainArea = document.querySelector(".main-area");
+  const placeholder = document.getElementById("mainPlaceholder");
+  const sidebar = document.querySelector(".sidebar");
+  const toggleBtn = document.getElementById("sidebarToggleBtn");
+  if (mainArea) mainArea.style.display = "flex";
+  if (sidebar) {
+    sidebar.style.display = "flex";
+    sidebar.classList.add("collapsed");
+  }
+  if (toggleBtn) {
+    toggleBtn.textContent = "Open sidebar";
+    toggleBtn.setAttribute("aria-label", "Open sidebar");
+  }
+  if (placeholder) placeholder.style.display = "none";
+  const grid = document.getElementById("characterGrid");
+  if (grid) grid.style.display = "none";
+}
 
 // --------------------
-// 현재 캐릭터 선택 (localStorage)
+// Load selection from storage
 // --------------------
 
 export function initCharacterFromStorage() {
@@ -32,100 +74,123 @@ export function initCharacterFromStorage() {
     if (found) current = found;
   }
 
-  window.currentCharacter = current;
+  setCurrentCharacter(current);
 }
 
 // --------------------
-// 사이드바 버튼 렌더링
+// Selection handlers
 // --------------------
 
-function renderCharacterButtons() {
-  const container = document.getElementById("character-buttons");
-  if (!container || !CHARACTERS.length) return;
+function handleSelectCharacter(c) {
+  setCurrentCharacter(c);
+  localStorage.setItem("selectedCharacterId", c.id);
 
-  const current = window.currentCharacter || CHARACTERS[0];
+  refreshCharacterUI();
+  showMainArea();
 
-  container.innerHTML = "";
+  loadMessages();
 
-  CHARACTERS.forEach((c) => {
-    const btn = document.createElement("button");
-    btn.textContent = c.name;
-    btn.className = "character-button";
+  if (messages.length === 0 && c.firstMessage && c.firstMessage.trim().length > 0) {
+    addMessage("bot", c.firstMessage.trim());
+  }
 
-    if (current && current.id === c.id) {
-      btn.classList.add("is-active");
-    }
+  renderMessages();
+}
 
-        btn.addEventListener("click", () => {
-      window.currentCharacter = c;
-      localStorage.setItem("selectedCharacterId", c.id);
+function handleDeleteCharacter(c) {
+  const ok = confirm(`Delete "${c.name}"? (Defaults can be hidden but not deleted permanently.)`);
+  if (!ok) return;
 
-      refreshCharacterUI();
+  const idx = CHARACTERS.findIndex((item) => item.id === c.id);
+  if (idx !== -1) {
+    CHARACTERS.splice(idx, 1);
+  }
 
-      // 캐릭터별 대화 로드
-      loadMessages();
+  if (isDefaultCharacter(c)) {
+    hideDefaultCharacterId(c.id);
+  }
 
-      // 이 캐릭터로는 처음 대화하는 거라면, 첫 인사 자동 추가
-      if (
-        messages.length === 0 &&
-        c.firstMessage &&
-        c.firstMessage.trim().length > 0
-      ) {
-        addMessage("bot", c.firstMessage.trim());
-      }
+  const fallback = CHARACTERS[0];
+  setCurrentCharacter(fallback || null);
+  if (fallback) {
+    localStorage.setItem("selectedCharacterId", fallback.id);
+  } else {
+    localStorage.removeItem("selectedCharacterId");
+  }
 
-      renderMessages();
-    });
+  clearMessages();
+  loadMessages();
+  saveUserCharacters();
+  refreshCharacterUI();
+  renderMessages();
+}
 
+// --------------------
+// Render helpers
+// --------------------
 
-    container.appendChild(btn);
+function renderCharacterButtonsUI() {
+  const current = getCurrentCharacter() || CHARACTERS[0];
+  renderCharacterButtonsView(current, {
+    onSelect: handleSelectCharacter,
+    onDelete: handleDeleteCharacter,
   });
 }
 
-// --------------------
-// 가운데 채팅 헤더(이름/태그라인)
-// --------------------
+function renderCharacterGridUI() {
+  const current = getCurrentCharacter() || CHARACTERS[0];
+  renderCharacterGridView(current, { onSelect: handleSelectCharacter });
+}
 
 function updateChatHeaderWithCharacter() {
-  const current = window.currentCharacter || CHARACTERS[0];
+  const current = getCurrentCharacter() || CHARACTERS[0];
 
   const nameEl = document.getElementById("currentCharacterName");
   const taglineEl = document.getElementById("currentCharacterTagline");
+  const chipNameEl = document.getElementById("inputCharName");
+  const chipAvatarEl = document.getElementById("inputCharAvatar");
 
-  if (nameEl && current) {
-    nameEl.textContent = current.name;
-  }
-  if (taglineEl && current) {
-    taglineEl.textContent = current.tagline || "";
+  if (nameEl && current) nameEl.textContent = current.name;
+  if (taglineEl && current) taglineEl.textContent = current.tagline || "";
+  if (chipNameEl && current) chipNameEl.textContent = current.name;
+  if (chipAvatarEl && current) {
+    setAvatarCircle(chipAvatarEl, current.name, current.imageUrl || "");
   }
 }
 
+
 // --------------------
-// 오른쪽 캐릭터 폼 채우기 (채팅 탭)
+// Form fill
 // --------------------
 
 function fillCharacterForm() {
-  const current = window.currentCharacter || CHARACTERS[0];
+  const current = getCurrentCharacter() || CHARACTERS[0];
+  current.exampleDialogues = Array.isArray(current.exampleDialogues)
+    ? current.exampleDialogues
+    : [];
 
   const nameInput = document.getElementById("charNameInput");
   const taglineInput = document.getElementById("charTaglineInput");
   const tagsInput = document.getElementById("charTagsInput");
   const systemPromptInput = document.getElementById("charSystemPromptInput");
 
-  const toneSelect = document.getElementById("charToneSelect");
   const personalityInput = document.getElementById("charPersonalityInput");
   const greetingInput = document.getElementById("charGreetingInput");
 
   const worldviewInput = document.getElementById("charWorldviewInput");
   const descriptionInput = document.getElementById("charDescriptionInput");
-  const exampleInput = document.getElementById("charExampleDialoguesInput");
   const firstMsgInput = document.getElementById("charFirstMessageInput");
-  
-  worldviewInput && (worldviewInput.value = current.worldview || "");
-  descriptionInput && (descriptionInput.value = current.description || "");
-  exampleInput && (exampleInput.value = current.exampleDialogues || "");
-  firstMsgInput && (firstMsgInput.value = current.firstMessage || "");
+  const imageUrlInput = document.getElementById("charImageUrlInput");
+  const imagePreview = document.getElementById("charImagePreview");
 
+  if (worldviewInput) worldviewInput.value = current.worldview || "";
+  if (descriptionInput) descriptionInput.value = current.description || "";
+  if (firstMsgInput) firstMsgInput.value = current.firstMessage || "";
+  if (imageUrlInput) imageUrlInput.value = current.imageUrl || "";
+  if (imagePreview) updateAvatarPreview(imagePreview, current.name, current.imageUrl);
+
+  renderDialogueExampleCards(current);
+  renderScenarioCards(current);
 
   const saveBtn = document.getElementById("saveCharacterBtn");
   const deleteBtn = document.getElementById("deleteCharacterBtn");
@@ -139,9 +204,6 @@ function fillCharacterForm() {
   tagsInput.value = Array.isArray(current.tags) ? current.tags.join(", ") : "";
   systemPromptInput.value = current.systemPrompt || "";
 
-  if (toneSelect) {
-    toneSelect.value = current.tone || "formal";
-  }
   if (personalityInput) {
     personalityInput.value = current.personality || "";
   }
@@ -155,64 +217,115 @@ function fillCharacterForm() {
     saveBtn.disabled = false;
   }
   if (deleteBtn) {
-    deleteBtn.disabled = isDefault;
+    deleteBtn.disabled = false;
+    deleteBtn.title = isDefault
+      ? "Default characters can be hidden but not removed permanently."
+      : "";
   }
 }
 
 // --------------------
-// 전체 캐릭터 UI 갱신 (사이드바 + 헤더 + 폼)
+// UI refresh
 // --------------------
 
 export function refreshCharacterUI() {
-  renderCharacterButtons();
+  renderCharacterButtonsUI();
+  renderCharacterGridUI();
   updateChatHeaderWithCharacter();
   fillCharacterForm();
 }
 
 // --------------------
-// 캐릭터 관리 버튼 이벤트 (채팅 탭 오른쪽 폼)
+// Event binding
 // --------------------
 
 export function setupCharacterManagementEvents() {
+  if (!builderTabsInitialized) {
+    setupBuilderTabs();
+    builderTabsInitialized = true;
+  }
+
+  const createNewCharacter = () => {
+    const newChar = createEmptyCharacter();
+    setCurrentCharacter(newChar);
+    CHARACTERS.push(newChar);
+    saveUserCharacters();
+    refreshCharacterUI();
+    showMainArea();
+  };
+
   const newBtn = document.getElementById("newCharacterBtn");
   const saveBtn = document.getElementById("saveCharacterBtn");
   const deleteBtn = document.getElementById("deleteCharacterBtn");
+  const placeholderAddBtn = document.getElementById("placeholderAddCharacterBtn");
 
   const nameInput = document.getElementById("charNameInput");
   const taglineInput = document.getElementById("charTaglineInput");
   const tagsInput = document.getElementById("charTagsInput");
   const systemPromptInput = document.getElementById("charSystemPromptInput");
 
-  const toneSelect = document.getElementById("charToneSelect");
   const personalityInput = document.getElementById("charPersonalityInput");
   const greetingInput = document.getElementById("charGreetingInput");
 
   const worldviewInput = document.getElementById("charWorldviewInput");
   const descriptionInput = document.getElementById("charDescriptionInput");
-  const exampleInput = document.getElementById("charExampleDialoguesInput");
   const firstMsgInput = document.getElementById("charFirstMessageInput");
+  const imageUrlInput = document.getElementById("charImageUrlInput");
+  const imageFileInput = document.getElementById("charImageFileInput");
+  const imagePreview = document.getElementById("charImagePreview");
+  const addDialogueExampleBtn = document.getElementById("addDialogueExampleBtn");
+  const {
+    closeBtn: dialogueCloseBtn,
+    saveBtn: dialogueSaveBtn,
+    roleUser: dialogueRoleUserBtn,
+    roleAssistant: dialogueRoleAssistantBtn,
+    sendBtn: dialogueSendBtn,
+    input: dialogueInputEl,
+  } = dialogueModal.getElements();
 
-
-  // 새 캐릭터 버튼
   if (newBtn) {
-    newBtn.addEventListener("click", () => {
-      const newChar = createEmptyCharacter();
-      window.currentCharacter = newChar;
-      CHARACTERS.push(newChar);
-      saveUserCharacters();
-      refreshCharacterUI();
+    newBtn.addEventListener("click", createNewCharacter);
+  }
+
+  if (placeholderAddBtn) {
+    placeholderAddBtn.addEventListener("click", createNewCharacter);
+  }
+
+  if (addDialogueExampleBtn) {
+    addDialogueExampleBtn.addEventListener("click", () => addDialogueExampleCard());
+  }
+
+  if (dialogueCloseBtn) {
+    dialogueCloseBtn.addEventListener("click", closeDialogueModal);
+  }
+  if (dialogueSaveBtn) {
+    dialogueSaveBtn.addEventListener("click", saveDialogueModal);
+  }
+  if (dialogueRoleUserBtn) {
+    dialogueRoleUserBtn.addEventListener("click", () => setDialogueRole("user"));
+  }
+  if (dialogueRoleAssistantBtn) {
+    dialogueRoleAssistantBtn.addEventListener("click", () => setDialogueRole("assistant"));
+  }
+  if (dialogueSendBtn) {
+    dialogueSendBtn.addEventListener("click", pushDialogueFromInput);
+  }
+  if (dialogueInputEl) {
+    dialogueInputEl.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        pushDialogueFromInput();
+      }
     });
   }
 
-  // 저장 버튼
   if (saveBtn) {
     saveBtn.addEventListener("click", () => {
-      const current = window.currentCharacter;
+      const current = getCurrentCharacter();
       if (!current) return;
-
       if (!nameInput || !taglineInput || !tagsInput || !systemPromptInput) return;
 
-      const name = nameInput.value.trim() || "이름 없음";
+      const name = nameInput.value.trim() || "Untitled";
       const tagline = taglineInput.value.trim();
       const systemPrompt = systemPromptInput.value.trim();
 
@@ -221,65 +334,135 @@ export function setupCharacterManagementEvents() {
         .map((t) => t.trim())
         .filter((t) => t.length > 0);
 
-      const tone = toneSelect ? toneSelect.value : "formal";
       const personality = personalityInput ? personalityInput.value.trim() : "";
       const greeting = greetingInput ? greetingInput.value.trim() : "";
-       const worldview = worldviewInput ? worldviewInput.value.trim() : "";
+      const worldview = worldviewInput ? worldviewInput.value.trim() : "";
       const description = descriptionInput ? descriptionInput.value.trim() : "";
-      const exampleDialogues = exampleInput ? exampleInput.value.trim() : "";
+      const exampleDialogues = collectDialogueExamples();
       const firstMessage = firstMsgInput ? firstMsgInput.value.trim() : "";
+      const imageUrl = imageUrlInput ? imageUrlInput.value.trim() : current.imageUrl;
 
       current.name = name;
       current.tagline = tagline;
       current.systemPrompt = systemPrompt;
       current.tags = tagsRaw;
-      current.tone = tone;
       current.personality = personality;
       current.greeting = greeting;
       current.worldview = worldview;
       current.description = description;
       current.exampleDialogues = exampleDialogues;
       current.firstMessage = firstMessage;
+      current.imageUrl = imageUrl || "";
+      current.scenarioExamples = Array.isArray(current.scenarioExamples)
+        ? current.scenarioExamples
+        : [];
 
       saveUserCharacters();
       refreshCharacterUI();
     });
   }
 
-  // 삭제 버튼
+  const applyImage = (url) => {
+    const current = getCurrentCharacter() || CHARACTERS[0];
+    if (!current) return;
+    current.imageUrl = url || "";
+    if (imageUrlInput) {
+      imageUrlInput.value = current.imageUrl;
+    }
+    updateAvatarPreview(imagePreview, current.name, current.imageUrl);
+    saveUserCharacters();
+    refreshCharacterUI();
+  };
+
+  if (imageUrlInput) {
+    imageUrlInput.addEventListener("change", () => {
+      applyImage(imageUrlInput.value.trim());
+    });
+  }
+
+  if (imageFileInput) {
+    imageFileInput.addEventListener("change", () => {
+      const file = imageFileInput.files?.[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        applyImage(reader.result);
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  // Delete
   if (deleteBtn) {
     deleteBtn.addEventListener("click", () => {
-      const current = window.currentCharacter;
+      const current = getCurrentCharacter();
       if (!current) return;
-
-      if (isDefaultCharacter(current)) {
-        // 기본 캐릭터는 삭제 불가
-        return;
-      }
-
-      const idx = CHARACTERS.findIndex((c) => c.id === current.id);
-      if (idx !== -1) {
-        CHARACTERS.splice(idx, 1);
-      }
-
-      // 현재 선택을 기본 캐릭터(첫 번째)로 돌리기
-      const fallback = CHARACTERS[0];
-      window.currentCharacter = fallback;
-      localStorage.setItem("selectedCharacterId", fallback.id);
-
-      // 해당 캐릭터의 대화 로그 안 보이게(초기화 후 다시 로드)
-      clearMessages();
-      loadMessages();
-      renderMessages();
-
-      saveUserCharacters();
-      refreshCharacterUI();
+      handleDeleteCharacter(current);
     });
+  }
+
+  // Scenario buttons
+  const addScenarioBtn = document.getElementById("addScenarioBtn");
+  const saveScenarioBtn = document.getElementById("saveScenarioBtn");
+  const cancelScenarioBtn = document.getElementById("cancelScenarioBtn");
+  const roleButtons = document.querySelectorAll(".role-chip");
+  if (addScenarioBtn) {
+    addScenarioBtn.addEventListener("click", () =>
+      openScenarioEditor(getCurrentCharacter(), null)
+    );
+  }
+  if (saveScenarioBtn) {
+    saveScenarioBtn.addEventListener("click", () =>
+      saveScenarioFromEditor(getCurrentCharacter())
+    );
+  }
+  if (cancelScenarioBtn) {
+    cancelScenarioBtn.addEventListener("click", () => cancelScenarioEdit());
+  }
+  roleButtons.forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const role = btn.dataset.role === "bot" ? "bot" : "user";
+      setScenarioRole(role);
+      updateScenarioRoleButtons();
+    });
+  });
+}
+
+// --------------------
+// Builder tabs
+// --------------------
+
+function setupBuilderTabs() {
+  const tabButtons = document.querySelectorAll(".builder-tab");
+  const panels = document.querySelectorAll(".builder-panel");
+  if (!tabButtons.length || !panels.length) return;
+
+  const activate = (targetId) => {
+    tabButtons.forEach((btn) => {
+      const isActive = btn.dataset.target === targetId;
+      btn.classList.toggle("active", isActive);
+    });
+    panels.forEach((panel) => {
+      panel.classList.toggle("active", panel.id === targetId);
+    });
+  };
+
+  tabButtons.forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const target = btn.dataset.target;
+      if (!target) return;
+      activate(target);
+    });
+  });
+
+  const first = tabButtons[0];
+  if (first?.dataset?.target) {
+    activate(first.dataset.target);
   }
 }
 
 // --------------------
-// 캐릭터 스튜디오 (Characters 탭)
+// Character studio (minimal)
 // --------------------
 
 function renderStudioCharacterList() {
@@ -291,10 +474,10 @@ function renderStudioCharacterList() {
   CHARACTERS.forEach((c) => {
     const li = document.createElement("li");
     li.className = "studio-char-item";
-    li.textContent = c.name + (isDefaultCharacter(c) ? " (기본)" : "");
+    li.textContent = c.name + (isDefaultCharacter(c) ? " (default)" : "");
     li.addEventListener("click", () => {
-      window.currentCharacter = c;
-      refreshCharacterUI(); // 채팅 탭 UI 동기화
+      setCurrentCharacter(c);
+      refreshCharacterUI();
       fillStudioFormWithCharacter(c);
     });
     listEl.appendChild(li);
@@ -307,9 +490,6 @@ function fillStudioFormWithCharacter(c) {
 
   const nameInput = f.querySelector("#studioCharNameInput");
   if (nameInput) nameInput.value = c.name || "";
-
-  // TODO: tagline, tags, tone, personality, greeting, systemPrompt 등도
-  //       여기서 같이 채워주면 됨.
 }
 
 function setupStudioFormEvents() {
@@ -317,11 +497,10 @@ function setupStudioFormEvents() {
   const studioNewBtn = document.getElementById("studioNewCharacterBtn");
   if (!f) return;
 
-  // 새 캐릭터 버튼 (스튜디오 탭 전용)
   if (studioNewBtn) {
     studioNewBtn.addEventListener("click", () => {
       const newChar = createEmptyCharacter();
-      window.currentCharacter = newChar;
+      setCurrentCharacter(newChar);
       CHARACTERS.push(newChar);
       saveUserCharacters();
       renderStudioCharacterList();
@@ -330,26 +509,28 @@ function setupStudioFormEvents() {
     });
   }
 
-  // 폼 submit → 현재 캐릭터에 반영
   f.addEventListener("submit", (e) => {
     e.preventDefault();
-    const current = window.currentCharacter;
+    const current = getCurrentCharacter();
     if (!current) return;
 
     const nameInput = f.querySelector("#studioCharNameInput");
-    current.name = (nameInput?.value.trim() || "이름 없음");
-
-    // TODO: 여기도 나중에 다른 필드들 추가
+    current.name = nameInput?.value.trim() || "Untitled";
 
     saveUserCharacters();
-    renderCharacterButtons();
+    renderCharacterButtonsUI();
     renderStudioCharacterList();
-    refreshCharacterUI(); // 채팅쪽 헤더/폼도 함께 갱신
+    refreshCharacterUI();
   });
 }
 
-// 스튜디오 탭 초기화용 외부 함수
+// Studio UI init
 export function initCharacterStudio() {
   renderStudioCharacterList();
   setupStudioFormEvents();
+}
+
+// Keep existing API surface
+export function renderCharacterGrid() {
+  renderCharacterGridUI();
 }

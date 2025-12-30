@@ -1,57 +1,43 @@
 // chatFlow.js
-// "채팅 한 번 보내기"와 "샘플 불러오기"만 담당하는 파일입니다.
-
+// Chat flow for "send message + fetch AI reply"
 import {
   addMessage,
   clearMessages,
-  updateMessageText,
+  overwriteMessageText,
+  removeMessagesAfterId,
+  getLastBotMessage,
+  addBotVariant,
+  stepBotVariant,
+  getVariantMeta,
+  messages,
 } from "./state.js";
+import { showThinking, hideThinking, renderMessages } from "./ui.js";
+import { requestAiReply } from "./api.js";
+import { getCurrentCharacter } from "./store.js";
+import { typeText } from "./typewriter.js";
 
-import {
-  showThinking,
-  hideThinking,
-  renderMessages,
-} from "./ui.js";
-
-import {
-  requestAiReply,
-  loadSampleMessages,
-} from "./api.js";
-
-let isWaiting = false; // 한 번에 하나만 보내도록 막는 플래그
-
-// 작은 유틸: 잠깐 쉬기
-function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-// 텍스트를 한 글자씩 찍는 효과 (귀찮으면 안 써도 됨)
-async function typeText(messageId, fullText) {
-  let current = "";
-
-  for (const ch of fullText) {
-    current += ch;
-    updateMessageText(messageId, current);
-    renderMessages();
-    await sleep(25); // 속도 조절
-  }
-}
+let isWaiting = false; // avoid parallel sends
+let editingMessageId = null;
 
 // ==============================
-// 1) 채팅 전송
+// 1) Send chat
 // ==============================
 export async function sendChat(rawText) {
-  // 이미 보내는 중이면 무시
   if (isWaiting) return;
 
   const text = (rawText || "").trim();
-  if (!text) return;
 
-  // 특수 명령: clear
-  if (text === "clear" || text === "/clear") {
+  if (editingMessageId && !text) {
+    return;
+  }
+
+  const isAutoContinue = !editingMessageId && text.length === 0;
+
+  // Shortcut command: clear
+  if (!editingMessageId && (text === "clear" || text === "/clear")) {
     clearMessages();
     renderMessages();
-    addMessage("bot", "채팅을 싹 비웠어! 🧹");
+    addMessage("bot", "Chat history cleared.");
     renderMessages();
     return;
   }
@@ -60,23 +46,49 @@ export async function sendChat(rawText) {
   showThinking();
 
   try {
-    // 1) 유저 메시지 추가
-    addMessage("user", text);
-    renderMessages();
+    const targetIdx = editingMessageId
+      ? messages.findIndex((m) => m.id === editingMessageId && m.role === "user")
+      : -1;
 
-    // 2) 서버에 AI 응답 요청
-    const replyText = await requestAiReply();
+    if (isAutoContinue) {
+      const continuePrompt =
+        "사용자가 아무 말도 하지 않았다. 지금부터는 같은 장면을 반복하지 말고, 이야기를 반드시 다음 단계로 진행해라. 이미 쓴 문장은 요약만 하고 새로운 사건을 추가해라.";
+      const replyText = await requestAiReply([
+        ...messages,
+        { role: "user", content: continuePrompt },
+      ]);
+      const botMsg = addMessage("bot", "");
+      await typeText(botMsg.id, replyText);
+    } else if (editingMessageId && targetIdx >= 0) {
+      overwriteMessageText(editingMessageId, text);
+      removeMessagesAfterId(editingMessageId);
+      renderMessages();
 
-    // 3) 봇 메시지 추가 (타이핑 효과 버전)
-    const botMsg = addMessage("bot", "");
-    await typeText(botMsg.id, replyText);
+      const replyText = await requestAiReply();
+      const botMsg = addMessage("bot", "");
+      await typeText(botMsg.id, replyText);
+      editingMessageId = null;
+    } else {
+      editingMessageId = null;
 
-    // 만약 한 번에 나오게 하고 싶으면 위 두 줄 대신:
-    // addMessage("bot", replyText);
-    // renderMessages();
+      // 1) Add user message
+      addMessage("user", text);
+      renderMessages();
+
+      // 2) Fetch AI
+      const replyText = await requestAiReply();
+
+      // 3) Render bot message (typewriter)
+      const botMsg = addMessage("bot", "");
+      await typeText(botMsg.id, replyText);
+    }
   } catch (err) {
     console.error(err);
-    addMessage("bot", "앗, 무언가 잘못됐어 😥\n잠시 후 다시 시도해줘!");
+    const friendly =
+      err?.message && typeof err.message === "string"
+        ? `Error: ${err.message}`
+        : "Something went wrong. Please try again.";
+    addMessage("bot", friendly);
     renderMessages();
   } finally {
     hideThinking();
@@ -85,31 +97,92 @@ export async function sendChat(rawText) {
 }
 
 // ==============================
-// 2) 샘플 데이터 불러오기
+// 2) Reset chat to initial (apply character firstMessage if present)
 // ==============================
-export async function loadSamples() {
+export function resetChatToInitial() {
+  const current = getCurrentCharacter();
+  clearMessages();
+
+  const first = current?.firstMessage?.trim();
+  if (first && first.length > 0) {
+    addMessage("bot", first);
+  }
+
+  renderMessages();
+}
+
+export function beginEditLatestUserMessage() {
+  for (let i = messages.length - 1; i >= 0; i -= 1) {
+    if (messages[i].role === "user") {
+      editingMessageId = messages[i].id;
+      return messages[i].text || "";
+    }
+  }
+  return null;
+}
+
+export function isChatBusy() {
+  return isWaiting;
+}
+
+export function getLatestBotVariantMeta() {
+  const lastBot = getLastBotMessage();
+  if (!lastBot) return null;
+  const meta = getVariantMeta(lastBot);
+  return { ...meta, messageId: lastBot.id };
+}
+
+export function showPreviousVariant() {
+  const lastBot = getLastBotMessage();
+  if (!lastBot) return false;
+  const result = stepBotVariant(lastBot.id, -1);
+  if (result.changed) {
+    renderMessages();
+  }
+  return result.changed;
+}
+
+export async function showNextVariantOrGenerate() {
+  const lastBot = getLastBotMessage();
+  if (!lastBot) return { generated: false, switched: false };
+  const meta = getVariantMeta(lastBot);
+  if (meta.hasNext) {
+    const result = stepBotVariant(lastBot.id, 1);
+    if (result.changed) {
+      renderMessages();
+    }
+    return { generated: false, switched: result.changed };
+  }
+
+  await regenerateLatestReply();
+  return { generated: true, switched: false };
+}
+
+export async function regenerateLatestReply() {
   if (isWaiting) return;
+
+  const lastBot = getLastBotMessage();
+  if (!lastBot) return;
+
+  const lastBotIndex = messages.findIndex((m) => m.id === lastBot.id);
+  const context = messages.filter((_, idx) => idx !== lastBotIndex);
+
   isWaiting = true;
   showThinking();
-
   try {
-    const data = await loadSampleMessages();
-
-    data.forEach((item) => {
-      addMessage("bot", `샘플: ${item.email} - ${item.name}`);
-    });
-
+    const replyText = await requestAiReply(context);
+    addBotVariant(lastBot.id, replyText);
     renderMessages();
   } catch (err) {
     console.error(err);
-    addMessage("bot", "샘플 불러오는 중 에러가 났어 ㅠㅠ");
+    const friendly =
+      err?.message && typeof err.message === "string"
+        ? `Error: ${err.message}`
+        : "Something went wrong. Please try again.";
+    addMessage("bot", friendly);
     renderMessages();
   } finally {
     hideThinking();
     isWaiting = false;
   }
 }
-
-
-
-

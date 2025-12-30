@@ -6,7 +6,7 @@ export const defaultProfile = {
   name: "",
   ageRange: "",
   tonePref: "",
-  interests: ""
+  interests: "",
 };
 
 export function loadUserProfile() {
@@ -15,7 +15,7 @@ export function loadUserProfile() {
     if (!raw) return { ...defaultProfile };
     return { ...defaultProfile, ...JSON.parse(raw) };
   } catch (e) {
-    console.error("프로필 로드 실패:", e);
+    console.error("Failed to load profile:", e);
     return { ...defaultProfile };
   }
 }
@@ -24,7 +24,7 @@ export function saveUserProfile(profile) {
   try {
     localStorage.setItem(USER_PROFILE_KEY, JSON.stringify(profile));
   } catch (e) {
-    console.error("프로필 저장 실패:", e);
+    console.error("Failed to save profile:", e);
   }
 }
 
@@ -32,12 +32,12 @@ export function buildUserProfilePrompt(profile) {
   const p = profile || defaultProfile;
 
   return `
-[사용자 정보]
-- 이름/닉네임: ${p.name || "알 수 없음"}
-- 나이대: ${p.ageRange || "알 수 없음"}
-- 말투/호칭 선호: ${p.tonePref || "특별한 선호 없음"}
-- 요즘 관심사/고민: ${p.interests || "정보 없음"}
+[User Profile]
+- Name/nickname: ${p.name || "Not provided"}
+- Age range: ${p.ageRange || "Not provided"}
+- Tone preference: ${p.tonePref || "Not provided"}
+- Interests: ${p.interests || "Not provided"}
 
-이 정보를 참고해서, 사용자의 성향과 상황에 맞게 말투와 예시를 조정하라.
+Adapt responses to this profile.
 `.trim();
 }

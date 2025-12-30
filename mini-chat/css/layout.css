@@ -1,0 +1,148 @@
+/* ====== Layout ====== */
+
+.app-layout {
+  display: flex;
+  min-height: 100vh;
+  height: auto;
+  max-height: none;
+  overflow: visible;
+  width: min(1200px, calc(100vw - 32px));
+  margin: 0 auto;
+  background: #ffffff;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.06);
+  border: 1px solid #eef1f5;
+  border-radius: 16px;
+}
+
+.main-placeholder {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.2rem;
+  color: #4b5563;
+  background: #ffffff;
+}
+
+.main-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+/* Sidebar */
+.sidebar {
+  flex: 0 0 260px;
+  border-right: 1px solid #edf0f4;
+  padding: 12px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  transition: width 0.15s ease, padding 0.15s ease, opacity 0.15s ease;
+  background: #fbfbfd;
+}
+
+.sidebar.collapsed {
+  width: 0;
+  padding: 0;
+  flex: 0 0 0;
+  border: none;
+  opacity: 0;
+  overflow: hidden;
+}
+
+.sidebar-section {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.sidebar-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+  font-size: 0.9rem;
+  gap: 8px;
+}
+
+.character-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  overflow-y: auto;
+}
+
+/* Tabs */
+.top-tabs {
+  display: flex;
+  gap: 8px;
+  padding: 8px 12px;
+  background: #fff;
+  border-bottom: 1px solid #edf0f4;
+}
+
+.tab-btn {
+  border: none;
+  background: #f5f7fb;
+  padding: 6px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  color: #334155;
+}
+
+.tab-btn.active {
+  background: #1f2937;
+  color: #ffffff;
+}
+
+/* Content areas */
+.app-content {
+  flex: 1;
+  display: none; /* JS에서 flex로 변경 */
+  min-height: 0;
+}
+
+.app-content.hidden {
+  display: none;
+}
+
+.app-content[data-view="chat"] {
+  display: flex;
+}
+
+.app-content > .chat-panel,
+.app-content > .detail-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Detail panel (right area) */
+.detail-panel {
+  width: 260px;
+  border-left: 1px solid #edf0f4;
+  padding: 12px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  min-height: 0;
+  background: #ffffff;
+}
+
+.app-content[data-view="characters"] .detail-panel {
+  width: 100%;
+  max-width: 1200px;
+  border-left: none;
+  margin: 0 auto;
+  padding: 16px;
+}
+
+@media (max-width: 900px) {
+  .detail-panel {
+    display: none;
+  }
+}

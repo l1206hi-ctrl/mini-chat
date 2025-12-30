@@ -1,0 +1,58 @@
+/* ====== Base ====== */
+
+body {
+  font-family: "Inter", "Pretendard", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    sans-serif;
+  background: #ffffff;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  margin: 0;
+  color: #0f172a;
+}
+
+/* ====== Overlay ====== */
+.overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.72);
+  z-index: 1000;
+}
+
+.hidden {
+  display: none;
+}
+
+.overlay.hidden {
+  display: none;
+}
+
+.dots {
+  font-size: 32px;
+  color: #1f2937;
+  letter-spacing: 6px;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Small-screen tweaks (placeholder for future) */
+@media (max-width: 600px) {
+  /* add responsive overrides here */
+}

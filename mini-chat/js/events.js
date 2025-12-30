@@ -1,44 +1,58 @@
 // events.js
-// 버튼/키보드 이벤트만 담당하는 파일
+// Wiring for form/buttons
+import {
+  sendChat,
+  resetChatToInitial,
+  beginEditLatestUserMessage,
+  regenerateLatestReply,
+  showPreviousVariant,
+  showNextVariantOrGenerate,
+  isChatBusy,
+} from "./chatFlow.js";
+import { clearAllStoredMessages, clearMessages } from "./state.js";
 
-import { sendChat, loadSamples } from "./chatFlow.js";
-
-const inputEl = document.getElementById("chatInput");
-const sendBtn = document.getElementById("sendBtn");
-const sampleBtn = document.getElementById("sampleBtn");
-
-if (!inputEl || !sendBtn || !sampleBtn) {
-  throw new Error("필수 DOM 요소를 찾을 수 없습니다.");
-}
-
-// ----------------------
-// 외부에서 한 번만 호출하면 됨
-// ----------------------
 export function setupEvents() {
-  // 전송 버튼
+  const inputEl = document.getElementById("chatInput");
+  const sendBtn = document.getElementById("sendBtn");
+  const resetBtn = document.getElementById("resetChatBtn");
+  const clearAllBtn = document.getElementById("clearAllChatsBtn");
+
+  if (!inputEl || !sendBtn) {
+    console.warn("Required DOM nodes (chatInput/sendBtn) are missing.");
+    return;
+  }
+
+  // Send button
   sendBtn.addEventListener("click", async () => {
-    await runSend();
+    await runSend(inputEl, sendBtn);
   });
 
-  // 샘플 버튼
-  sampleBtn.addEventListener("click", async () => {
-    await runSample();
-  });
+  // Reset button
+  if (resetBtn) {
+    resetBtn.addEventListener("click", () => {
+      resetChatToInitial();
+    });
+  }
 
-  // 엔터 / Shift+Enter 처리
+  if (clearAllBtn) {
+    clearAllBtn.addEventListener("click", () => {
+      const ok = confirm("모든 캐릭터의 대화 기록을 삭제할까요?");
+      if (!ok) return;
+      clearAllStoredMessages();
+      clearMessages();
+    });
+  }
+
+  // Enter to send / Shift+Enter for newline
   inputEl.addEventListener("keydown", async (e) => {
-    // 조합 입력(한글 IME) 중이면 무시
     if (e.isComposing) return;
     if (e.key !== "Enter") return;
 
-    // Shift + Enter → 줄바꿈
     if (e.shiftKey) {
       e.preventDefault();
-
       const { selectionStart, selectionEnd, value } = inputEl;
       const before = value.slice(0, selectionStart);
       const after = value.slice(selectionEnd);
-
       inputEl.value = before + "\n" + after;
       const pos = selectionStart + 1;
       inputEl.selectionStart = pos;
@@ -46,46 +60,69 @@ export function setupEvents() {
       return;
     }
 
-    // 그냥 Enter → 전송
     e.preventDefault();
-    await runSend();
+    await runSend(inputEl, sendBtn);
   });
+
+  // Message action bar (edit/regenerate/previous)
+  const messagesEl = document.getElementById("messages");
+  if (messagesEl) {
+    messagesEl.addEventListener("click", async (event) => {
+      const target = event.target.closest("[data-action]");
+      if (!target) return;
+      if (target.disabled) return;
+      if (isChatBusy()) return;
+
+      const action = target.getAttribute("data-action");
+
+      if (action === "edit-last") {
+        const text = beginEditLatestUserMessage();
+        if (text !== null && inputEl) {
+          inputEl.value = text;
+          inputEl.focus();
+          inputEl.selectionStart = inputEl.selectionEnd = inputEl.value.length;
+        }
+        return;
+      }
+
+      if (action === "prev-reply") {
+        showPreviousVariant();
+        return;
+      }
+
+      if (action === "next-reply") {
+        await showNextVariantOrGenerate();
+        return;
+      }
+
+      if (action === "regen-reply") {
+        await regenerateLatestReply();
+      }
+    });
+  }
 }
 
 // ----------------------
-// UI 잠그기 / 풀기 + chatFlow 호출
+// helpers
 // ----------------------
-async function runSend() {
+
+async function runSend(inputEl, sendBtn) {
   const text = inputEl.value;
-  if (!text.trim()) return;
 
   inputEl.value = "";
 
-  lockUI();
+  lockUI(sendBtn);
   try {
     await sendChat(text);
   } finally {
-    unlockUI();
+    unlockUI(sendBtn);
   }
 }
 
-async function runSample() {
-  lockUI();
-  try {
-    await loadSamples();
-  } finally {
-    unlockUI();
-  }
-}
-
-function lockUI() {
+function lockUI(sendBtn) {
   sendBtn.disabled = true;
-  sampleBtn.disabled = true;
 }
 
-function unlockUI() {
+function unlockUI(sendBtn) {
   sendBtn.disabled = false;
-  sampleBtn.disabled = false;
 }
-
-
